@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strudel GUI Composer</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Tone.js for Audio Preview -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569; 
+        }
+
+        /* Neon Glow Effects */
+        .neon-text-blue {
+            text-shadow: 0 0 5px #3b82f6, 0 0 10px #3b82f6;
+        }
+        .crt-overlay {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%,
+                rgba(0, 0, 0, 0.25) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.06),
+                rgba(0, 255, 0, 0.02),
+                rgba(0, 0, 255, 0.06)
+            );
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+        }
+        
+        /* Tooltip Animation */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .tooltip-anim {
+            animation: fadeIn 0.15s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-200 overflow-hidden font-mono">
+    <div id="root" class="h-screen w-screen flex flex-col"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useMemo } = React;
+        
+        // --- Icons ---
+        const Icons = {
+            Play: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>,
+            Pause: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>,
+            Plus: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            Trash2: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
+            Volume2: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>,
+            Copy: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>,
+            Music: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>,
+            Zap: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>,
+            X: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>,
+            Activity: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>,
+            Layers: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>,
+            Repeat: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>,
+            Eye: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>,
+            EyeOff: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>,
+            Help: (props) => <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        };
+
+        const { Play, Pause, Plus, Trash2, Volume2, Copy, Music, Zap, X, Activity, Layers, Repeat, Eye, EyeOff, Help } = Icons;
+
+        // --- Data & Constants ---
+        const TOOLTIPS = {
+            "sawtooth": "A bright, buzzy wave rich in harmonics. Classic for synth leads and basses.",
+            "square": "A hollow, woody sound. Think retro video games (NES) or clarinets.",
+            "moog": "Emulation of a classic analog monosynth. Fat and warm.",
+            "sub": "Pure sine wave with added harmonics for deep bass.",
+            "bd": "Bass Drum (Kick). The heartbeat of the track.",
+            "sd": "Snare Drum. Provides the backbeat.",
+            "hh": "Hi-Hat. High pitched metallic percussion for rhythm.",
+            "cp": "Clap. Sharp, snappy percussive sound.",
+            "808": "Sounds from the legendary Roland TR-808 drum machine.",
+            "lpf": "Low Pass Filter. Muffles the sound by cutting high frequencies. Makes things sound 'underwater'.",
+            "hpf": "High Pass Filter. Thins the sound by cutting low frequencies.",
+            "delay": "Echo effect. Repeats the sound after a short time.",
+            "room": "Reverb. Simulates the sound bouncing around a room.",
+            "gain": "Volume boost or cut.",
+            "vowel": "Formant filter that makes the synth sound like it's speaking (A, E, I, O, U).",
+            "crush": "Bitcrusher. Reduces audio quality for a lo-fi, crunchy digital sound.",
+            "shape": "Distortion. Adds grit and aggression.",
+            "euclid": "Euclidean Rhythms. Mathematical algorithm to distribute hits as evenly as possible.",
+            "step": "Step Sequencer. Manually place notes on a grid.",
+            "speed": "Time stretching. 2x is twice as fast, 0.5x is half speed.",
+            "jux": "Juxtapose. Plays the normal pattern in left ear and reversed pattern in right ear.",
+            "reverse": "Plays the pattern backwards.",
+            "piano_roll": "Visualizes notes over time. Pitch is vertical, time is horizontal.",
+            "cycle": "Cycle Variations. Add multiple pages to create evolving loops (Strudel '< >' notation)."
+        };
+
+        const NOTE_OPTIONS = ["C2", "G2", "C3", "D3", "E3", "F3", "G3", "A3", "B3", "C4", "D4", "E4", "F4", "G4", "A4", "B4", "C5"];
+        
+        const SOUND_BANKS = {
+            Drums: ["bd", "sd", "hh", "cp", "808bd", "808sd", "808oh", "909"],
+            Analog: ["sawtooth", "square", "moog", "sub"],
+            Keys: ["piano", "rhodes", "vibraphone"],
+            Glitch: ["glitch", "tech", "noise"]
+        };
+
+        const EFFECT_TYPES = [
+            { id: 'lpf', name: 'Low Pass', min: 100, max: 5000, step: 100, default: 2000 },
+            { id: 'hpf', name: 'High Pass', min: 0, max: 4000, step: 100, default: 0 },
+            { id: 'delay', name: 'Delay', min: 0, max: 1, step: 0.1, default: 0.5 },
+            { id: 'room', name: 'Reverb', min: 0, max: 2, step: 0.1, default: 0.5 },
+            { id: 'gain', name: 'Gain', min: 0, max: 2, step: 0.1, default: 1 },
+            { id: 'vowel', name: 'Vowel', min: 0, max: 4, step: 1, default: 0 },
+            { id: 'crush', name: 'Bitcrush', min: 1, max: 16, step: 1, default: 8 },
+            { id: 'shape', name: 'Distort', min: 0, max: 1, step: 0.1, default: 0.5 },
+        ];
+
+        // --- Tone.js Engine ---
+        const AudioEngine = {
+            loops: [],
+            nodes: [],
+            isPlaying: false,
+
+            init: async () => {
+                await Tone.start();
+            },
+
+            stop: () => {
+                Tone.Transport.stop();
+                Tone.Transport.cancel();
+                AudioEngine.loops.forEach(l => l.dispose());
+                AudioEngine.loops = [];
+                AudioEngine.nodes.forEach(n => n.dispose());
+                AudioEngine.nodes = [];
+                AudioEngine.isPlaying = false;
+            },
+
+            createSource: (track) => {
+                const soundId = track.sound;
+                let instrument;
+                if (['bd', '808bd', '909bd'].some(s => soundId.includes(s))) {
+                    instrument = new Tone.MembraneSynth();
+                } else if (['hh', 'oh', '808oh'].some(s => soundId.includes(s))) {
+                    instrument = new Tone.MetalSynth({ envelope: { decay: 0.1, release: 0.1 }, harmonicity: 5.1, modulationIndex: 32, resonance: 4000, octaves: 1.5 });
+                } else if (['sd', 'cp', '808sd'].some(s => soundId.includes(s))) {
+                    instrument = new Tone.NoiseSynth({ envelope: { decay: 0.2 } });
+                } else if (soundId.includes('piano')) {
+                    instrument = new Tone.PolySynth(Tone.Synth, { oscillator: { type: 'triangle' }, envelope: { attack: 0.05, decay: 0.3, sustain: 0.4, release: 1 } });
+                } else {
+                    instrument = new Tone.PolySynth(Tone.Synth, {
+                        oscillator: { type: soundId.includes('saw') ? 'sawtooth' : 'square' }
+                    });
+                }
+                return instrument;
+            },
+
+            createEffect: (fx) => {
+                switch(fx.id) {
+                    case 'lpf': return new Tone.Filter(fx.value, "lowpass");
+                    case 'hpf': return new Tone.Filter(fx.value, "highpass");
+                    case 'delay': return new Tone.FeedbackDelay("8n", fx.value);
+                    case 'room': return new Tone.JCReverb(fx.value > 1 ? 0.9 : fx.value);
+                    case 'gain': return new Tone.Gain(fx.value);
+                    case 'crush': return new Tone.BitCrusher(fx.value);
+                    case 'shape': return new Tone.Distortion(fx.value);
+                    default: return null;
+                }
+            },
+
+            play: (tracks) => {
+                AudioEngine.stop();
+                Tone.Transport.bpm.value = 120; 
+                
+                tracks.forEach((track) => {
+                    if (track.muted) return;
+
+                    const source = AudioEngine.createSource(track);
+                    AudioEngine.nodes.push(source);
+
+                    let chain = [source];
+                    track.effects.forEach(fx => {
+                        const fxNode = AudioEngine.createEffect(fx);
+                        if (fxNode) {
+                            chain.push(fxNode);
+                            AudioEngine.nodes.push(fxNode);
+                        }
+                    });
+
+                    const vol = new Tone.Volume(-5);
+                    chain.push(vol);
+                    AudioEngine.nodes.push(vol);
+
+                    for(let i = 0; i < chain.length - 1; i++) chain[i].connect(chain[i+1]);
+                    chain[chain.length - 1].toDestination();
+
+                    // Flatten cycles into one long sequence
+                    let fullSequenceSteps = [];
+                    track.cycles.forEach(cycle => {
+                        if (track.mode === 'euclid') {
+                            const onsets = new Array(track.euclidSteps).fill(0);
+                            if (track.euclidSteps > 0 && track.euclidHits > 0) {
+                                 for(let i=0; i<track.euclidHits; i++) {
+                                     onsets[Math.floor(i * track.euclidSteps / track.euclidHits)] = 1;
+                                 }
+                            }
+                            fullSequenceSteps.push(...onsets.map(active => ({ active: !!active, note: track.rootNote || "C3" })));
+                        } else {
+                            fullSequenceSteps.push(...cycle.steps);
+                        }
+                    });
+
+                    const loop = new Tone.Sequence((time, step) => {
+                        const cell = fullSequenceSteps[step % fullSequenceSteps.length];
+                        if (cell && cell.active) {
+                            if (track.type === 'drum') {
+                                const note = track.sound.includes('bd') ? "C1" : "C4";
+                                source.triggerAttackRelease(note, "8n", time);
+                            } else {
+                                source.triggerAttackRelease(cell.note || "C4", "8n", time);
+                            }
+                        }
+                    }, Array.from(Array(fullSequenceSteps.length).keys()), "8n");
+
+                    loop.start(0);
+                    AudioEngine.loops.push(loop);
+                });
+
+                Tone.Transport.start();
+                AudioEngine.isPlaying = true;
+            }
+        };
+
+        // --- Generators ---
+        const generateCode = (tracks) => {
+            if (tracks.length === 0) return "// No tracks added yet.\n// Click '+ Add Track' to start.";
+
+            const trackCodes = tracks.map(track => {
+                let sourceCode = "";
+                
+                // Helper to format a single pattern string
+                const formatPattern = (steps) => `"${steps.map(s => s.active ? (track.type === 'drum' ? 'x' : s.note) : '~').join(' ')}"`;
+
+                // Handle Cycles (< pat1 pat2 >)
+                let patternString = "";
+                if (track.mode === 'euclid') {
+                    // Euclid doesn't really use the cycles array in this simplified GUI, 
+                    // but we could allow parameter modulation later. For now, simple.
+                    patternString = `euclid(${track.euclidHits}, ${track.euclidSteps})`;
+                    if (track.type === 'drum') {
+                        sourceCode = `s("${track.sound}").${patternString}`;
+                    } else {
+                        sourceCode = `note("${track.rootNote}").${patternString}.s("${track.sound}")`;
+                    }
+                } else {
+                    // Step Mode
+                    if (track.cycles.length > 1) {
+                        const cycleStrings = track.cycles.map(c => formatPattern(c.steps));
+                        patternString = `< ${cycleStrings.join(' ')} >`;
+                    } else {
+                        patternString = formatPattern(track.cycles[0].steps);
+                    }
+
+                    if (track.type === 'drum') {
+                        sourceCode = `s("${track.sound}").struct(${patternString})`;
+                    } else {
+                        sourceCode = `note(${patternString}).s("${track.sound}")`;
+                    }
+                }
+
+                if (track.transform.speed !== 1) {
+                    if (track.transform.speed > 1) sourceCode += `.fast(${track.transform.speed})`;
+                    else sourceCode += `.slow(${1/track.transform.speed})`;
+                }
+                
+                if (track.transform.jux) sourceCode += `.jux(rev)`;
+                if (track.transform.reverse) sourceCode += `.rev()`;
+
+                track.effects.forEach(fx => sourceCode += `\n  .${fx.id}(${fx.value})`);
+
+                return sourceCode;
+            });
+
+            if (tracks.length === 1) return trackCodes[0] + ";";
+            return `stack(\n  ${trackCodes.join(',\n  ')}\n).slow(2);`;
+        };
+
+        // --- Components ---
+
+        const Tooltip = ({ id, children }) => {
+            const [isVisible, setIsVisible] = useState(false);
+            const [style, setStyle] = useState({});
+            const [arrowStyle, setArrowStyle] = useState({});
+            const [placement, setPlacement] = useState('top');
+            const triggerRef = useRef(null);
+            
+            const text = TOOLTIPS[id] || TOOLTIPS[Object.keys(TOOLTIPS).find(k => id.includes(k))] || "No description available.";
+
+            const calculatePosition = () => {
+                if (!triggerRef.current) return;
+                const rect = triggerRef.current.getBoundingClientRect();
+                const TOOLTIP_WIDTH = 192; // w-48 = 12rem = 192px approx
+                const TOOLTIP_HEIGHT = 80; // approximate
+                const SCREEN_PADDING = 10;
+                
+                let top, left, arrowLeft;
+                let newPlacement = 'top';
+
+                // Horizontal Positioning
+                const triggerCenter = rect.left + rect.width / 2;
+                left = triggerCenter - (TOOLTIP_WIDTH / 2); // Centered default
+                
+                // Clamp Left
+                if (left < SCREEN_PADDING) {
+                    left = SCREEN_PADDING;
+                }
+                // Clamp Right
+                if (left + TOOLTIP_WIDTH > window.innerWidth - SCREEN_PADDING) {
+                    left = window.innerWidth - TOOLTIP_WIDTH - SCREEN_PADDING;
+                }
+                
+                // Calculate Arrow position relative to tooltip container
+                arrowLeft = triggerCenter - left;
+
+                // Vertical Positioning
+                if (rect.top < TOOLTIP_HEIGHT + 20) {
+                    // Not enough space above, go bottom
+                    newPlacement = 'bottom';
+                    top = rect.bottom + 8;
+                } else {
+                    // Go top
+                    newPlacement = 'top';
+                    top = rect.top - 8;
+                }
+
+                setStyle({ top, left });
+                setArrowStyle({ left: arrowLeft });
+                setPlacement(newPlacement);
+            };
+
+            const handleEnter = () => {
+                calculatePosition();
+                setIsVisible(true);
+            };
+
+            // Recalculate on scroll/resize if visible
+            useEffect(() => {
+                if (isVisible) {
+                    window.addEventListener('scroll', calculatePosition, true);
+                    window.addEventListener('resize', calculatePosition);
+                    return () => {
+                        window.removeEventListener('scroll', calculatePosition, true);
+                        window.removeEventListener('resize', calculatePosition);
+                    }
+                }
+            }, [isVisible]);
+
+            return (
+                <>
+                    <div 
+                        ref={triggerRef} 
+                        onMouseEnter={handleEnter} 
+                        onMouseLeave={() => setIsVisible(false)}
+                        className="cursor-help flex items-center"
+                    >
+                        {children}
+                    </div>
+                    {isVisible && ReactDOM.createPortal(
+                        <div 
+                            className="fixed z-[9999] pointer-events-none transition-opacity duration-200"
+                            style={{ 
+                                top: style.top, 
+                                left: style.left,
+                                width: '192px', // w-48
+                                transform: placement === 'top' ? 'translateY(-100%)' : 'translateY(0)'
+                            }}
+                        >
+                            <div className="bg-slate-800 border border-blue-500/30 text-xs text-slate-200 p-2 rounded shadow-xl relative">
+                                <div className="font-bold text-blue-400 mb-1 capitalize">{id.replace('_', ' ')}</div>
+                                <div>{text}</div>
+                                
+                                {/* Arrow */}
+                                <div 
+                                    className={`absolute w-2 h-2 bg-slate-800 border-blue-500/30 rotate-45 ${
+                                        placement === 'top' 
+                                        ? 'bottom-[-5px] border-r border-b' 
+                                        : 'top-[-5px] border-l border-t'
+                                    }`}
+                                    style={{ left: arrowStyle.left, transform: 'translateX(-50%) rotate(45deg)' }}
+                                ></div>
+                            </div>
+                        </div>,
+                        document.body
+                    )}
+                </>
+            );
+        };
+
+        const HelpIcon = ({ id }) => (
+            <Tooltip id={id}>
+                <div className="ml-1 text-slate-600 hover:text-blue-400">
+                    <Help size={12} />
+                </div>
+            </Tooltip>
+        );
+
+        const PianoRoll = ({ tracks }) => {
+            const canvasRef = useRef(null);
+            
+            useEffect(() => {
+                const canvas = canvasRef.current;
+                const ctx = canvas.getContext('2d');
+                let animId;
+
+                const draw = () => {
+                    const w = canvas.width = canvas.clientWidth;
+                    const h = canvas.height = canvas.clientHeight;
+                    
+                    // Background
+                    ctx.fillStyle = '#050505';
+                    ctx.fillRect(0, 0, w, h);
+
+                    // --- Calculate Master Loop Length ---
+                    // Find the track with the most cycles (this determines the total visual width)
+                    const maxCycles = Math.max(...tracks.map(t => t.mode === 'euclid' ? 1 : t.cycles.length));
+                    
+                    // Grid
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 1;
+                    
+                    // Total steps to visualize = 8 steps per cycle * maxCycles
+                    // (Assuming 8 steps/cycle default for simplified viz)
+                    const stepsPerCycle = 8; 
+                    const totalVisualSteps = stepsPerCycle * maxCycles;
+                    const stepW = w / totalVisualSteps;
+                    
+                    // Draw Cycle Dividers (Stronger lines)
+                    for(let c=1; c<maxCycles; c++) {
+                        const x = c * (w / maxCycles);
+                        ctx.beginPath();
+                        ctx.moveTo(x, 0);
+                        ctx.lineTo(x, h);
+                        ctx.strokeStyle = '#334155'; // Lighter color for cycle boundaries
+                        ctx.lineWidth = 2;
+                        ctx.stroke();
+                    }
+
+                    // Draw Step Grid
+                    ctx.lineWidth = 1;
+                    ctx.strokeStyle = '#1e293b';
+                    for(let i=0; i<=totalVisualSteps; i++) {
+                        ctx.beginPath();
+                        ctx.moveTo(i * stepW, 0);
+                        ctx.lineTo(i * stepW, h);
+                        ctx.stroke();
+                    }
+
+                    // Render Tracks
+                    const visibleTracks = tracks.filter(t => t.visibleInRoll && !t.muted);
+                    const rowH = h / (visibleTracks.length || 1);
+
+                    visibleTracks.forEach((track, idx) => {
+                        const y = idx * rowH;
+                        
+                        // Background Strip
+                        ctx.fillStyle = idx % 2 === 0 ? '#0f172a' : '#0b1121';
+                        ctx.fillRect(0, y, w, rowH);
+
+                        // --- EXPAND PATTERN TO FILL MASTER LENGTH ---
+                        // If track has 1 cycle but master is 4, repeat track 4 times.
+                        let displaySequence = [];
+                        
+                        if (track.mode === 'euclid') {
+                             // Generate one cycle of euclid
+                             const onsets = new Array(track.euclidSteps).fill(0);
+                             if (track.euclidSteps > 0 && track.euclidHits > 0) {
+                                 for(let i=0; i<track.euclidHits; i++) {
+                                     onsets[Math.floor(i * track.euclidSteps / track.euclidHits)] = 1;
+                                 }
+                             }
+                             const singleCycle = onsets.map(a => ({ active: !!a, note: track.rootNote }));
+                             
+                             // Repeat to fill maxCycles
+                             for(let i=0; i<maxCycles; i++) {
+                                 displaySequence.push(...singleCycle); 
+                             }
+                        } else {
+                            // Step Mode
+                            const trackCycles = track.cycles.length;
+                            // For each cycle-slot C from 0 to maxCycles-1:
+                            // The track plays cycle index: C % trackCycles
+                            
+                            for(let c=0; c<maxCycles; c++) {
+                                const cycleIndex = c % trackCycles;
+                                const steps = track.cycles[cycleIndex].steps;
+                                displaySequence.push(...steps);
+                            }
+                        }
+
+                        // Render the expanded sequence
+                        const noteW = w / displaySequence.length;
+                        
+                        displaySequence.forEach((step, sIdx) => {
+                            if (step.active) {
+                                ctx.fillStyle = track.type === 'drum' ? '#ec4899' : '#3b82f6';
+                                const blockH = rowH * 0.6;
+                                const blockY = y + (rowH - blockH) / 2;
+                                ctx.fillRect(sIdx * noteW + 2, blockY, noteW - 4, blockH);
+                                
+                                // Text (only if wide enough)
+                                if (track.type === 'note' && step.note && noteW > 20) {
+                                    ctx.fillStyle = 'white';
+                                    ctx.font = '9px monospace';
+                                    ctx.fillText(step.note, sIdx * noteW + 4, blockY + blockH/2 + 3);
+                                }
+                            }
+                        });
+                    });
+
+                    // Playhead
+                    const beatDuration = Tone.Transport.bpm.value > 0 ? (60 / Tone.Transport.bpm.value) : 0.5;
+                    const cycleDuration = beatDuration * 4; // 4 beats per cycle
+                    const totalDuration = cycleDuration * maxCycles;
+                    
+                    if (Tone.Transport.state === 'started') {
+                        // Progress 0..1 over total duration
+                        const progress = (Tone.Transport.seconds % totalDuration) / totalDuration;
+                        const playX = progress * w;
+                        
+                        ctx.strokeStyle = '#ef4444';
+                        ctx.lineWidth = 2;
+                        ctx.beginPath();
+                        ctx.moveTo(playX, 0);
+                        ctx.lineTo(playX, h);
+                        ctx.stroke();
+                    }
+
+                    animId = requestAnimationFrame(draw);
+                };
+
+                draw();
+                return () => cancelAnimationFrame(animId);
+            }, [tracks]);
+
+            return <canvas ref={canvasRef} className="w-full h-full block" />;
+        };
+
+        const EffectKnob = ({ effect, onChange, onRemove }) => {
+            const containerRef = useRef(null);
+
+            const handleMouseDown = (e) => {
+                e.preventDefault();
+                const updateValue = (clientY) => {
+                    if (!containerRef.current) return;
+                    const rect = containerRef.current.getBoundingClientRect();
+                    const y = rect.bottom - clientY;
+                    const clampedY = Math.max(0, Math.min(y, rect.height));
+                    const normalized = clampedY / rect.height;
+                    const rawValue = normalized * (effect.max - effect.min) + effect.min;
+                    let stepped = Math.round(rawValue / effect.step) * effect.step;
+                    stepped = Math.max(effect.min, Math.min(effect.max, stepped));
+                    const precision = effect.step.toString().split('.')[1]?.length || 0;
+                    onChange(Number(stepped.toFixed(precision)));
+                };
+                updateValue(e.clientY);
+                const handleMouseMove = (ev) => updateValue(ev.clientY);
+                const handleMouseUp = () => {
+                    document.removeEventListener('mousemove', handleMouseMove);
+                    document.removeEventListener('mouseup', handleMouseUp);
+                };
+                document.addEventListener('mousemove', handleMouseMove);
+                document.addEventListener('mouseup', handleMouseUp);
+            };
+
+            return (
+                <div className="flex flex-col items-center p-2 bg-slate-900 rounded-lg border border-slate-800 relative group min-w-[70px]">
+                    <div className="absolute top-1 right-1 flex gap-1 z-10">
+                        <HelpIcon id={effect.id} />
+                        <button onClick={onRemove} className="text-red-500 hover:text-white opacity-0 group-hover:opacity-100 transition-opacity">
+                            <X size={10} />
+                        </button>
+                    </div>
+                    <span className="text-[10px] text-blue-400 font-bold mb-2 uppercase tracking-wider truncate w-full text-center mt-3" title={effect.name}>{effect.name}</span>
+                    <div 
+                        ref={containerRef}
+                        onMouseDown={handleMouseDown}
+                        className="relative w-8 h-24 bg-slate-800 rounded-lg flex justify-center items-end overflow-hidden mb-2 border border-slate-700 shadow-inner cursor-ns-resize touch-none"
+                    >
+                         <div 
+                            className="w-full bg-blue-500 transition-all duration-75 ease-out opacity-80 rounded-b-lg pointer-events-none"
+                            style={{ height: `${((effect.value - effect.min) / (effect.max - effect.min)) * 100}%` }}
+                         />
+                    </div>
+                    <span className="text-[10px] font-mono text-slate-300">{effect.value}</span>
+                </div>
+            )
+        };
+
+        const Track = ({ track, onUpdate, onDelete }) => {
+            const [showFxMenu, setShowFxMenu] = useState(false);
+            const [view, setView] = useState('sequencer'); // 'sequencer' | 'transform'
+            const [activeCycle, setActiveCycle] = useState(0);
+
+            const toggleStep = (idx) => {
+                const newCycles = [...track.cycles];
+                const newSteps = [...newCycles[activeCycle].steps];
+                newSteps[idx].active = !newSteps[idx].active;
+                newCycles[activeCycle] = { ...newCycles[activeCycle], steps: newSteps };
+                onUpdate({ ...track, cycles: newCycles });
+            };
+
+            const updateNote = (idx, note) => {
+                const newCycles = [...track.cycles];
+                const newSteps = [...newCycles[activeCycle].steps];
+                newSteps[idx].note = note;
+                if (!newSteps[idx].active) newSteps[idx].active = true;
+                newCycles[activeCycle] = { ...newCycles[activeCycle], steps: newSteps };
+                onUpdate({ ...track, cycles: newCycles });
+            };
+            
+            const addCycle = () => {
+                const newCycles = [...track.cycles, { steps: JSON.parse(JSON.stringify(track.cycles[track.cycles.length-1].steps)) }];
+                onUpdate({ ...track, cycles: newCycles });
+                setActiveCycle(newCycles.length - 1);
+            };
+
+            const removeCycle = (idx, e) => {
+                e.stopPropagation();
+                if (track.cycles.length <= 1) return;
+                const newCycles = track.cycles.filter((_, i) => i !== idx);
+                onUpdate({ ...track, cycles: newCycles });
+                if (activeCycle >= newCycles.length) setActiveCycle(newCycles.length - 1);
+            };
+            
+            const addEffect = (typeId) => {
+                const template = EFFECT_TYPES.find(e => e.id === typeId);
+                const newFx = { ...template, value: template.default };
+                onUpdate({ ...track, effects: [...track.effects, newFx] });
+                setShowFxMenu(false);
+            };
+
+            const updateEffect = (fxIndex, val) => {
+                const newEffects = [...track.effects];
+                newEffects[fxIndex].value = val;
+                onUpdate({ ...track, effects: newEffects });
+            };
+
+            const removeEffect = (fxIndex) => {
+                const newEffects = track.effects.filter((_, i) => i !== fxIndex);
+                onUpdate({ ...track, effects: newEffects });
+            };
+
+            return (
+                <div className="bg-slate-900/50 border border-slate-800 p-4 rounded-xl mb-4 backdrop-blur-sm shadow-lg">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-4">
+                        <div className="flex items-center gap-3">
+                            <div className={`p-2 rounded-lg ${track.type === 'drum' ? 'bg-pink-500/10 text-pink-400' : 'bg-cyan-500/10 text-cyan-400'}`}>
+                                {track.type === 'drum' ? <Zap size={18} /> : <Music size={18} />}
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <select 
+                                        value={track.sound}
+                                        onChange={(e) => onUpdate({...track, sound: e.target.value})}
+                                        className="bg-transparent text-lg text-slate-200 font-bold border-none outline-none cursor-pointer hover:text-blue-400"
+                                    >
+                                        {Object.entries(SOUND_BANKS).map(([category, sounds]) => (
+                                            <optgroup label={category} key={category} className="bg-slate-900">
+                                                {sounds.map(s => <option key={s} value={s}>{s}</option>)}
+                                            </optgroup>
+                                        ))}
+                                    </select>
+                                    <HelpIcon id={track.sound} />
+                                </div>
+                                <div className="text-xs text-slate-500 uppercase tracking-widest">{track.mode === 'euclid' ? 'Generative Mode' : 'Step Mode'}</div>
+                            </div>
+                        </div>
+                        <div className="flex gap-2">
+                            <div className="flex bg-slate-800 rounded-lg p-1 mr-4">
+                                <button 
+                                    onClick={() => setView('sequencer')}
+                                    className={`p-1.5 rounded ${view === 'sequencer' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                                    title="Sequencer"
+                                >
+                                    <Activity size={16} />
+                                </button>
+                                <button 
+                                    onClick={() => setView('transform')}
+                                    className={`p-1.5 rounded ${view === 'transform' ? 'bg-slate-700 text-white' : 'text-slate-500 hover:text-slate-300'}`}
+                                    title="Time & Space"
+                                >
+                                    <Repeat size={16} />
+                                </button>
+                            </div>
+                            
+                            <Tooltip id="piano_roll">
+                                <button 
+                                    onClick={() => onUpdate({...track, visibleInRoll: !track.visibleInRoll})}
+                                    className={`p-2 rounded transition-colors ${track.visibleInRoll ? 'text-blue-400 bg-blue-500/10' : 'text-slate-600'}`}
+                                >
+                                    {track.visibleInRoll ? <Eye size={16} /> : <EyeOff size={16} />}
+                                </button>
+                            </Tooltip>
+
+                            <button 
+                                onClick={() => onUpdate({...track, muted: !track.muted})}
+                                className={`p-2 rounded hover:bg-slate-800 transition-colors ${track.muted ? 'text-red-500 bg-red-500/10' : 'text-slate-400'}`}
+                            >
+                                <Volume2 size={16} />
+                            </button>
+                            <button onClick={onDelete} className="p-2 rounded text-slate-400 hover:text-red-400 hover:bg-slate-800 transition-colors">
+                                <Trash2 size={16} />
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* VIEW: SEQUENCER */}
+                    {view === 'sequencer' && (
+                        <div className="mb-4">
+                            <div className="flex justify-between items-center mb-2 px-1">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] uppercase text-slate-500 font-bold">Pattern Generator</span>
+                                    <HelpIcon id={track.mode} />
+                                </div>
+                                <button 
+                                    onClick={() => onUpdate({...track, mode: track.mode === 'step' ? 'euclid' : 'step'})}
+                                    className="text-[10px] text-blue-400 hover:text-blue-300 font-bold uppercase"
+                                >
+                                    Switch to {track.mode === 'step' ? 'Euclidean' : 'Step'} 
+                                </button>
+                            </div>
+
+                            {track.mode === 'step' ? (
+                                <div>
+                                    {/* Cycle Tabs */}
+                                    <div className="flex gap-1 mb-2">
+                                        {track.cycles.map((_, idx) => (
+                                            <div 
+                                                key={idx}
+                                                onClick={() => setActiveCycle(idx)}
+                                                className={`group relative px-3 py-1 text-xs font-bold rounded-t cursor-pointer select-none flex items-center gap-2 ${activeCycle === idx ? 'bg-slate-800 text-blue-400 border-t border-x border-slate-700' : 'bg-slate-900 text-slate-500 hover:bg-slate-800'}`}
+                                            >
+                                                CYCLE {idx + 1}
+                                                {track.cycles.length > 1 && (
+                                                    <button 
+                                                        onClick={(e) => removeCycle(idx, e)}
+                                                        className="hover:text-red-400 opacity-0 group-hover:opacity-100"
+                                                    >
+                                                        <X size={10} />
+                                                    </button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <button 
+                                            onClick={addCycle}
+                                            className="px-2 py-1 text-xs bg-slate-900 hover:bg-blue-600 hover:text-white rounded text-slate-500"
+                                            title="Add Variation Cycle"
+                                        >
+                                            <Plus size={12} />
+                                        </button>
+                                        <div className="ml-2 flex items-center">
+                                            <HelpIcon id="cycle" />
+                                        </div>
+                                    </div>
+
+                                    <div className="flex gap-1 overflow-x-auto pb-2 border border-slate-700 bg-slate-800/30 p-2 rounded-b rounded-r">
+                                        {track.cycles[activeCycle].steps.map((step, idx) => (
+                                            <div key={idx} className="flex flex-col gap-1 w-12 shrink-0">
+                                                <div className={`h-1 w-full rounded-full transition-all duration-75 ${step.active ? 'bg-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.8)]' : 'bg-slate-800'}`}></div>
+                                                <button
+                                                    onClick={() => toggleStep(idx)}
+                                                    className={`h-12 w-full rounded flex items-center justify-center border transition-all ${
+                                                        step.active 
+                                                        ? 'bg-blue-600 border-blue-400 text-white shadow-inner' 
+                                                        : 'bg-slate-800 border-slate-700 hover:border-slate-500 text-slate-600'
+                                                    }`}
+                                                >
+                                                    {step.active && track.type === 'drum' && <div className="w-2 h-2 rounded-full bg-white"></div>}
+                                                    {step.active && track.type === 'note' && <span className="text-xs font-bold">{step.note}</span>}
+                                                </button>
+                                                {track.type === 'note' && (
+                                                    <select 
+                                                        className="bg-slate-900 text-[10px] text-slate-400 border border-slate-800 rounded w-full outline-none focus:border-blue-500"
+                                                        value={step.note}
+                                                        onChange={(e) => updateNote(idx, e.target.value)}
+                                                    >
+                                                        {NOTE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                                                    </select>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="bg-slate-800/50 rounded-lg p-4 border border-slate-700 flex items-center justify-around gap-6">
+                                    {/* Euclid Controls */}
+                                    <div className="flex flex-col items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-400">HITS (Pulses)</span>
+                                        <div className="text-2xl font-bold text-blue-400">{track.euclidHits}</div>
+                                        <input 
+                                            type="range" min="0" max={track.euclidSteps} step="1"
+                                            value={track.euclidHits}
+                                            onChange={(e) => onUpdate({...track, euclidHits: parseInt(e.target.value)})}
+                                            className="w-32 accent-blue-500 h-2 bg-slate-900 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                    <div className="h-12 w-px bg-slate-700"></div>
+                                    <div className="flex flex-col items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-400">LENGTH (Steps)</span>
+                                        <div className="text-2xl font-bold text-slate-200">{track.euclidSteps}</div>
+                                        <input 
+                                            type="range" min="1" max="16" step="1"
+                                            value={track.euclidSteps}
+                                            onChange={(e) => onUpdate({...track, euclidSteps: parseInt(e.target.value)})}
+                                            className="w-32 accent-slate-500 h-2 bg-slate-900 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                    </div>
+                                    {track.type === 'note' && (
+                                        <div className="flex flex-col items-center gap-2">
+                                            <span className="text-xs font-bold text-slate-400">ROOT</span>
+                                            <select 
+                                                className="bg-slate-900 text-sm text-blue-400 font-bold border border-slate-700 rounded px-2 py-1 outline-none"
+                                                value={track.rootNote}
+                                                onChange={(e) => onUpdate({...track, rootNote: e.target.value})}
+                                            >
+                                                {NOTE_OPTIONS.map(n => <option key={n} value={n}>{n}</option>)}
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
+                    {/* VIEW: TRANSFORM */}
+                    {view === 'transform' && (
+                        <div className="mb-4 bg-slate-800/50 rounded-lg p-4 border border-slate-700">
+                             <div className="grid grid-cols-2 gap-6">
+                                <div>
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <span className="text-[10px] uppercase text-slate-500 font-bold">Time</span>
+                                        <HelpIcon id="speed" />
+                                    </div>
+                                    <div className="flex items-center justify-between mb-2">
+                                        <span className="text-xs text-slate-300">Speed</span>
+                                        <span className="text-xs font-mono text-blue-400">
+                                            {track.transform.speed === 1 ? '1x' : track.transform.speed > 1 ? `${track.transform.speed}x` : `1/${1/track.transform.speed}`}
+                                        </span>
+                                    </div>
+                                    <input 
+                                        type="range" min="0.25" max="4" step="0.25"
+                                        value={track.transform.speed}
+                                        onChange={(e) => onUpdate({...track, transform: {...track.transform, speed: parseFloat(e.target.value)}})}
+                                        className="w-full accent-blue-500 h-1 bg-slate-900 rounded-lg appearance-none cursor-pointer"
+                                    />
+                                    <div className="flex justify-between text-[9px] text-slate-500 mt-1 font-mono">
+                                        <span>Slow</span>
+                                        <span>Fast</span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <span className="text-[10px] uppercase text-slate-500 font-bold block mb-3">Space</span>
+                                    <div className="flex flex-col gap-2">
+                                        <label className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-300 group-hover:text-white">Stereo Jux</span>
+                                                <HelpIcon id="jux" />
+                                            </div>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={track.transform.jux}
+                                                onChange={(e) => onUpdate({...track, transform: {...track.transform, jux: e.target.checked}})}
+                                                className="accent-pink-500"
+                                            />
+                                        </label>
+                                        <label className="flex items-center justify-between cursor-pointer group">
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-300 group-hover:text-white">Reverse</span>
+                                                <HelpIcon id="reverse" />
+                                            </div>
+                                            <input 
+                                                type="checkbox" 
+                                                checked={track.transform.reverse}
+                                                onChange={(e) => onUpdate({...track, transform: {...track.transform, reverse: e.target.checked}})}
+                                                className="accent-cyan-500"
+                                            />
+                                        </label>
+                                    </div>
+                                </div>
+                             </div>
+                        </div>
+                    )}
+
+                    {/* Effects Rack (Always Visible) */}
+                    <div className="flex items-start gap-2 border-t border-slate-800/50 pt-3">
+                        <div className="flex gap-2 overflow-x-auto py-2 pr-2 scrollbar-hide">
+                            {track.effects.map((fx, i) => (
+                                <EffectKnob 
+                                    key={i} 
+                                    effect={fx} 
+                                    onChange={(val) => updateEffect(i, val)}
+                                    onRemove={() => removeEffect(i)}
+                                />
+                            ))}
+                        </div>
+                        
+                        <div className="relative mt-2 shrink-0">
+                            <button 
+                                onClick={() => setShowFxMenu(!showFxMenu)}
+                                className="h-24 w-10 border border-dashed border-slate-700 rounded-lg flex flex-col items-center justify-center text-slate-500 hover:border-blue-500 hover:text-blue-500 transition-all gap-2"
+                            >
+                                <Plus size={16} />
+                                <span className="text-[9px] font-bold rotate-180 writing-mode-vertical">FX</span>
+                            </button>
+                            
+                            {showFxMenu && (
+                                <div className="absolute top-0 left-12 z-50 bg-slate-800 border border-slate-700 rounded-lg shadow-xl w-32 overflow-hidden max-h-48 overflow-y-auto">
+                                    {EFFECT_TYPES.map(fx => (
+                                        <button 
+                                            key={fx.id}
+                                            onClick={() => addEffect(fx.id)}
+                                            className="w-full text-left px-3 py-2 text-xs text-slate-300 hover:bg-blue-600 hover:text-white border-b border-slate-700/50 last:border-0 group flex justify-between items-center"
+                                        >
+                                            + {fx.name}
+                                            <HelpIcon id={fx.id} />
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [isPlaying, setIsPlaying] = useState(false);
+            const [tracks, setTracks] = useState([
+                {
+                    id: 1,
+                    type: 'drum',
+                    sound: 'bd',
+                    muted: false,
+                    visibleInRoll: true,
+                    mode: 'step', 
+                    euclidHits: 3,
+                    euclidSteps: 8,
+                    transform: { speed: 1, jux: false, reverse: false },
+                    effects: [{...EFFECT_TYPES[0], value: 1000, min: 100, max: 5000, step: 100, name: 'Low Pass'}],
+                    cycles: [
+                        { steps: Array(8).fill(null).map(() => ({ active: false, note: 'C3' })) }
+                    ]
+                },
+                 {
+                    id: 2,
+                    type: 'note',
+                    sound: 'sawtooth',
+                    rootNote: 'G3',
+                    muted: false,
+                    visibleInRoll: true,
+                    mode: 'euclid',
+                    euclidHits: 5,
+                    euclidSteps: 16,
+                    transform: { speed: 1, jux: true, reverse: false },
+                    effects: [{...EFFECT_TYPES[2], value: 0.3, min: 0, max: 1, step: 0.1, name: 'Delay'}],
+                    cycles: [
+                        { steps: Array(8).fill(null).map((_, i) => ({ active: i % 2 === 0, note: i % 4 === 0 ? 'C3' : 'G3' })) }
+                    ]
+                }
+            ]);
+
+            useEffect(() => {
+                const newTracks = [...tracks];
+                newTracks[0].cycles[0].steps[0].active = true;
+                newTracks[0].cycles[0].steps[4].active = true;
+                setTracks(newTracks);
+            }, []);
+
+            const togglePlay = async () => {
+                if (!isPlaying) {
+                    await AudioEngine.init();
+                    AudioEngine.play(tracks);
+                    setIsPlaying(true);
+                } else {
+                    AudioEngine.stop();
+                    setIsPlaying(false);
+                }
+            };
+
+            useEffect(() => {
+                if (isPlaying) {
+                    AudioEngine.play(tracks);
+                }
+            }, [tracks]);
+
+            const addTrack = (type) => {
+                const newTrack = {
+                    id: Date.now(),
+                    type,
+                    sound: type === 'drum' ? 'sd' : 'piano',
+                    rootNote: 'C3',
+                    muted: false,
+                    visibleInRoll: true,
+                    mode: 'step',
+                    euclidHits: 3,
+                    euclidSteps: 8,
+                    transform: { speed: 1, jux: false, reverse: false },
+                    effects: [],
+                    cycles: [
+                        { steps: Array(8).fill(null).map(() => ({ active: false, note: 'C3' })) }
+                    ]
+                };
+                setTracks([...tracks, newTrack]);
+            };
+
+            const updateTrack = (updatedTrack) => {
+                setTracks(tracks.map(t => t.id === updatedTrack.id ? updatedTrack : t));
+            };
+
+            const deleteTrack = (id) => {
+                setTracks(tracks.filter(t => t.id !== id));
+            };
+
+            const generatedCode = useMemo(() => generateCode(tracks), [tracks]);
+
+            const copyToClipboard = () => {
+                navigator.clipboard.writeText(generatedCode);
+            };
+
+            return (
+                <div className="flex h-full w-full bg-slate-950 relative text-sm">
+                    {/* CRT Overlay Effect */}
+                    <div className="absolute inset-0 z-50 pointer-events-none crt-overlay opacity-30"></div>
+
+                    {/* Left Sidebar: Tracks */}
+                    <div className="w-2/3 h-full flex flex-col p-6 border-r border-slate-800 overflow-hidden">
+                        <header className="flex justify-between items-center mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="bg-blue-600 p-2 rounded-lg shadow-[0_0_15px_rgba(37,99,235,0.5)]">
+                                    <Music className="text-white" />
+                                </div>
+                                <h1 className="text-2xl font-bold tracking-tight text-white neon-text-blue font-mono">
+                                    STRUDEL<span className="text-blue-500">.GUI</span>
+                                </h1>
+                            </div>
+                            
+                            <div className="flex gap-2">
+                                <button 
+                                    onClick={togglePlay}
+                                    className={`px-6 py-2 rounded-full font-bold flex items-center gap-2 transition-all ${
+                                        isPlaying 
+                                        ? 'bg-red-500 text-white shadow-[0_0_20px_rgba(239,68,68,0.4)]' 
+                                        : 'bg-green-500 text-slate-900 hover:bg-green-400 shadow-[0_0_20px_rgba(34,197,94,0.4)]'
+                                    }`}
+                                >
+                                    {isPlaying ? <Pause size={18} /> : <Play size={18} />}
+                                    {isPlaying ? 'STOP' : 'PLAY'}
+                                </button>
+                            </div>
+                        </header>
+
+                        {/* Track List */}
+                        <div className="flex-1 overflow-y-auto pr-2 pb-24">
+                            {tracks.map(track => (
+                                <Track 
+                                    key={track.id} 
+                                    track={track} 
+                                    onUpdate={updateTrack} 
+                                    onDelete={() => deleteTrack(track.id)}
+                                />
+                            ))}
+                            
+                            <div className="flex gap-4 mt-4 opacity-50 hover:opacity-100 transition-opacity border-2 border-dashed border-slate-800 rounded-xl p-6 justify-center items-center">
+                                <button onClick={() => addTrack('drum')} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 font-bold transition-colors">
+                                    <Plus size={16} /> Add Drum Track
+                                </button>
+                                <button onClick={() => addTrack('note')} className="flex items-center gap-2 px-4 py-2 bg-slate-800 hover:bg-slate-700 rounded-lg text-slate-300 font-bold transition-colors">
+                                    <Plus size={16} /> Add Synth Track
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Right Sidebar: Code & Visuals */}
+                    <div className="w-1/3 bg-[#0a0f1e] flex flex-col border-l border-slate-800">
+                        {/* Piano Roll Area */}
+                        <div className="h-1/3 bg-black relative overflow-hidden border-b border-slate-800">
+                             <PianoRoll tracks={tracks} />
+                             
+                             <div className="absolute top-2 right-4 text-xs text-slate-500 font-mono flex items-center gap-2">
+                                <HelpIcon id="piano_roll" />
+                                PIANO_ROLL.exe
+                             </div>
+                             
+                             {/* Status Info */}
+                             <div className="absolute bottom-2 left-4 font-mono text-[10px] pointer-events-none">
+                                <div className="flex gap-4 text-slate-400">
+                                    <span>BPM: 120</span>
+                                    <span>CPS: 0.5</span>
+                                    <span>TRACKS: {tracks.length}</span>
+                                </div>
+                             </div>
+                        </div>
+
+                        {/* Code Editor Area */}
+                        <div className="flex-1 flex flex-col bg-[#050505]">
+                            <div className="flex justify-between items-center px-4 py-3 bg-slate-900 border-b border-slate-800">
+                                <span className="text-xs font-bold text-slate-400 flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                                    GENERATED CODE
+                                </span>
+                                <button 
+                                    onClick={copyToClipboard}
+                                    className="p-1.5 hover:bg-slate-800 rounded text-slate-400 hover:text-white transition-colors"
+                                    title="Copy Code"
+                                >
+                                    <Copy size={14} />
+                                </button>
+                            </div>
+                            
+                            <div className="flex-1 p-4 font-mono text-sm overflow-auto">
+                                <pre className="text-pink-400 whitespace-pre-wrap leading-relaxed">
+                                    {generatedCode.split('\n').map((line, i) => {
+                                        // Simple syntax highlighting
+                                        const isFunction = line.includes('.');
+                                        return (
+                                            <div key={i} className={isFunction ? "pl-4" : ""}>
+                                                <span className="text-slate-600 mr-4 select-none">{i + 1}</span>
+                                                <span className={line.startsWith('//') ? "text-slate-500 italic" : "text-cyan-300"}>
+                                                    {line}
+                                                </span>
+                                            </div>
+                                        )
+                                    })}
+                                </pre>
+                            </div>
+                            
+                            <div className="p-4 border-t border-slate-800 bg-slate-900/50">
+                                <div className="text-[10px] text-slate-500 mb-2">
+                                    Paste this code into strudel.cc for the full audio engine experience.
+                                </div>
+                                <a 
+                                    href="https://strudel.cc" 
+                                    target="_blank"
+                                    className="block w-full text-center py-2 bg-blue-600/20 hover:bg-blue-600/40 text-blue-400 border border-blue-500/50 rounded transition-all text-xs font-bold"
+                                >
+                                    OPEN STRUDEL REPL ↗
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
